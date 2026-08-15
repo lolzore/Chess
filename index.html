@@ -258,7 +258,7 @@ function render(){
   movesEl.scrollTop = movesEl.scrollHeight;
 
   const undoBtn = document.getElementById("undo");
-  undoBtn.disabled = (mode === "online") || history.length === 0;
+  undoBtn.disabled = history.length === 0;
   const newBtn = document.getElementById("new");
   newBtn.textContent = mode === "online"
     ? (S.over ? "Rematch" : "Leave")
@@ -278,7 +278,10 @@ function doMoveLocal(m, promo){
 
 function sendMove(m, promo){
   // apply locally so the mover's board updates, then relay to the peer
-  C.playMove(S, m, promo);
+  const before = C.cloneState(S);
+  const res = C.playMove(S, m, promo);
+  if(!res) return;
+  history.push(before);
   selected = null; legal = [];
   render();
   const msg = { type:"move", fr:m.fr, fc:m.fc, tr:m.tr, tc:m.tc };
@@ -289,8 +292,9 @@ function sendMove(m, promo){
 function onSquare(r,c){
   if(S.over || waiting || oppLeft) return;
   const p = S.board[r][c];
-  if(mode === "online" && p && p.c !== myColor) return;
 
+  // 1) If a piece is selected and this square is a legal destination, make the move.
+  //    Must come BEFORE the "own piece only" guard so captures of enemy pieces work.
   if(selected){
     const m = legal.find(x=>x.tr===r && x.tc===c);
     if(m){
@@ -303,7 +307,11 @@ function onSquare(r,c){
       else sendMove(m, null);
       return;
     }
+    // clicked a non-target square: fall through to (re)selection below
   }
+
+  // 2) Selection: online you may only select your own pieces
+  if(mode === "online" && p && p.c !== myColor) return;
   if(p && (mode === "local" ? p.c === S.turn : p.c === myColor)){
     selected = [r,c];
     legal = C.legalMoves(S, r, c);
@@ -401,8 +409,9 @@ function handleOnlineMsg(msg){
       // Accept a move only when it's the opponent's turn (reject if it's my own turn = out-of-order).
       // playMove below does the real legality + piece-color validation.
       if(S.over || S.turn === myColor) return;
+      const before = C.cloneState(S);
       const res = C.playMove(S, {fr:msg.fr, fc:msg.fc, tr:msg.tr, tc:msg.tc}, msg.promo || undefined);
-      if(res){ selected = null; legal = []; render(); }
+      if(res){ history.push(before); selected = null; legal = []; render(); }
       break;
     }
     case "resign":
@@ -417,6 +426,18 @@ function handleOnlineMsg(msg){
       selected = null; legal = [];
       render();
       break;
+    case "undo": {
+      const n = Math.min(msg.n || 1, history.length);
+      if(!n) return;
+      let st;
+      for(let i=0;i<n;i++) st = history.pop();
+      S = st;
+      selected = null; legal = [];
+      pendingPromo = null;
+      document.getElementById("promo").classList.add("hidden");
+      render();
+      break;
+    }
   }
 }
 
@@ -506,12 +527,21 @@ document.getElementById("new").addEventListener("click", ()=>{
 });
 
 document.getElementById("undo").addEventListener("click", ()=>{
-  if(mode === "online" || !history.length) return;
-  S = history.pop();
+  if(!history.length) return;
+  // Online: take back enough plies so it's my turn again (2 if it's my turn,
+  // 1 if it's the opponent's) and tell the peer so both boards stay in sync.
+  // Local: take back the last single move.
+  const n = mode === "online"
+    ? Math.min((S.turn === myColor) ? 2 : 1, history.length)
+    : 1;
+  let st;
+  for(let i=0;i<n;i++) st = history.pop();
+  S = st;
   selected = null; legal = [];
   pendingPromo = null;
   document.getElementById("promo").classList.add("hidden");
   render();
+  if(mode === "online") sendOnline({type:"undo", n});
 });
 
 document.getElementById("resign").addEventListener("click", ()=>{
