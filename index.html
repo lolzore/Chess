@@ -1,0 +1,543 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Chess — Local & Online Multiplayer</title>
+<script src="engine.js"></script>
+<script src="peerjs.min.js"></script>
+<style>
+  :root{
+    --light:#f0d9b5; --dark:#b58863;
+    --bg:#1e1e24; --panel:#2a2a33; --text:#e8e8ee;
+    --accent:#7ec8e3; --sel:#f7e26b;
+  }
+  *{box-sizing:border-box; margin:0; padding:0;}
+  body{
+    background:var(--bg); color:var(--text);
+    font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+    min-height:100vh; display:flex; align-items:center; justify-content:center; padding:16px;
+  }
+  #app{display:flex; gap:20px; flex-wrap:wrap; justify-content:center; align-items:flex-start;}
+  #board-wrap{position:relative;}
+  #board{
+    display:grid; grid-template-columns:repeat(8, minmax(48px, 68px));
+    grid-template-rows:repeat(8, minmax(48px, 68px));
+    border:4px solid #4a3b2a; border-radius:6px; overflow:hidden;
+    box-shadow:0 10px 30px rgba(0,0,0,.5);
+  }
+  .sq{
+    position:relative; display:flex; align-items:center; justify-content:center;
+    font-size:min(6vw, 46px); line-height:1; cursor:pointer; user-select:none;
+  }
+  .sq.light{background:var(--light);} .sq.dark{background:var(--dark);}
+  .sq .pc{transition:transform .08s;}
+  .sq .pc.w{color:#fff; text-shadow:0 1px 3px rgba(0,0,0,.6);}
+  .sq .pc.b{color:#111; text-shadow:0 1px 2px rgba(255,255,255,.25);}
+  .sq .coord{
+    position:absolute; font-size:10px; font-weight:600; opacity:.55; pointer-events:none;
+  }
+  .sq .coord.file{bottom:2px; right:3px;}
+  .sq .coord.rank{top:2px; left:3px;}
+  .sq.light .coord{color:#b58863;} .sq.dark .coord{color:#f0d9b5;}
+  .sq.last::after{content:""; position:absolute; inset:0; background:rgba(247,226,107,.35);}
+  .sq.sel::after{content:""; position:absolute; inset:0; background:rgba(126,200,227,.45);}
+  .sq.check::after{content:""; position:absolute; inset:0; background:radial-gradient(circle, rgba(230,60,60,.85) 20%, rgba(230,60,60,.25) 70%, transparent 75%);}
+  .sq .dot{
+    position:absolute; width:26%; height:26%; border-radius:50%;
+    background:rgba(30,30,30,.35); z-index:2;
+  }
+  .sq .ring{
+    position:absolute; inset:4%; border-radius:50%;
+    border:4px solid rgba(30,30,30,.4); z-index:2;
+  }
+  #side{
+    background:var(--panel); border-radius:10px; padding:18px; width:280px;
+    display:flex; flex-direction:column; gap:14px; box-shadow:0 6px 20px rgba(0,0,0,.4);
+  }
+  #side h1{font-size:22px; letter-spacing:.5px;}
+  #room-code{
+    font-size:13px; font-weight:600; padding:8px 12px; border-radius:8px;
+    background:rgba(126,200,227,.12); border:1px solid rgba(126,200,227,.3);
+    display:none;
+  }
+  #room-code code{font-size:18px; letter-spacing:3px; color:var(--accent);}
+  #status{
+    font-size:15px; font-weight:600; padding:10px 12px; border-radius:8px;
+    background:rgba(126,200,227,.12); border:1px solid rgba(126,200,227,.3);
+  }
+  .cap{font-size:20px; min-height:26px; letter-spacing:1px;}
+  .cap .lbl{font-size:11px; opacity:.6; margin-right:6px;}
+  #moves{
+    background:rgba(0,0,0,.25); border-radius:8px; padding:10px;
+    height:220px; overflow-y:auto; font-family:ui-monospace,monospace; font-size:13px;
+  }
+  .mrow{display:grid; grid-template-columns:34px 1fr 1fr; gap:4px; padding:2px 4px;}
+  .mrow:nth-child(odd){background:rgba(255,255,255,.04);}
+  .mnum{opacity:.5;}
+  .buttons{display:flex; gap:8px;}
+  button{
+    flex:1; padding:9px 0; border:none; border-radius:7px; cursor:pointer;
+    background:#3d3d4a; color:var(--text); font-weight:600; font-size:13px;
+    transition:background .15s;
+  }
+  button:hover{background:#4c4c5c;}
+  button:disabled{opacity:.4; cursor:default;}
+  #promo{
+    position:absolute; inset:0; background:rgba(0,0,0,.65); z-index:10;
+    display:flex; align-items:center; justify-content:center;
+  }
+  #promo .box{
+    background:var(--panel); border-radius:10px; padding:16px 20px; text-align:center;
+  }
+  #promo .box p{margin-bottom:10px; font-weight:600;}
+  #promo .choices{display:flex; gap:8px;}
+  #promo .choices button{
+    width:56px; height:56px; font-size:34px; background:#3d3d4a;
+  }
+  .hidden{display:none !important;}
+
+  /* Lobby overlay */
+  #lobby{
+    position:fixed; inset:0; z-index:100;
+    background:rgba(20,20,26,.92); backdrop-filter:blur(4px);
+    display:flex; align-items:center; justify-content:center;
+  }
+  #lobby .card{
+    background:var(--panel); border-radius:14px; padding:28px; width:340px;
+    display:flex; flex-direction:column; gap:16px;
+    box-shadow:0 12px 40px rgba(0,0,0,.6);
+  }
+  #lobby h1{font-size:28px; text-align:center;}
+  #lobby h3{font-size:13px; text-transform:uppercase; letter-spacing:1px; opacity:.6;}
+  #lobby .opt{display:flex; flex-direction:column; gap:8px;}
+  #lobby button{padding:12px; font-size:15px;}
+  #lobby .joinrow{display:flex; gap:8px;}
+  #lobby input{
+    flex:2; padding:10px; border-radius:7px; border:1px solid #4a4a58;
+    background:#1e1e24; color:var(--text); font-size:18px; letter-spacing:4px;
+    text-transform:uppercase; text-align:center; font-family:ui-monospace,monospace;
+  }
+  #lobby .joinrow button{flex:1;}
+  #lobby-err{color:#e07070; font-size:13px; min-height:16px; text-align:center;}
+  hr{border:none; border-top:1px solid #44444f;}
+</style>
+</head>
+<body>
+
+<div id="lobby">
+  <div class="card">
+    <h1>♞ Chess</h1>
+    <div class="opt">
+      <h3>Local</h3>
+      <button id="btn-local">Play on this device</button>
+    </div>
+    <hr>
+    <div class="opt">
+      <h3>Online — two browsers</h3>
+      <button id="btn-create">Create game</button>
+      <div class="joinrow">
+        <input id="join-code" maxlength="4" placeholder="CODE" autocomplete="off">
+        <button id="btn-join">Join</button>
+      </div>
+      <div id="lobby-err"></div>
+    </div>
+  </div>
+</div>
+
+<div id="app">
+  <div id="board-wrap">
+    <div id="board"></div>
+    <div id="promo" class="hidden">
+      <div class="box">
+        <p>Promote to:</p>
+        <div class="choices" id="promo-choices"></div>
+      </div>
+    </div>
+  </div>
+  <div id="side">
+    <h1>♞ Chess</h1>
+    <div id="room-code">Room code: <code id="room-code-val"></code><br><span style="font-weight:400;font-size:12px">Share this code with your opponent</span></div>
+    <div id="status"></div>
+    <div class="cap" id="cap-w"><span class="lbl">White captured:</span></div>
+    <div class="cap" id="cap-b"><span class="lbl">Black captured:</span></div>
+    <div id="moves"></div>
+    <div class="buttons">
+      <button id="new">New Game</button>
+      <button id="undo">Undo</button>
+      <button id="resign">Resign</button>
+    </div>
+  </div>
+</div>
+
+<script>
+"use strict";
+const C = Chess;
+const GLYPH = C.GLYPH;
+
+let S = C.initialState();
+let history = [];
+let selected = null;
+let legal = [];
+let pendingPromo = null;
+
+/* online state (PeerJS P2P) */
+let mode = "local";        // "local" | "online"
+let myColor = null;        // "w" | "b"
+let peer = null;
+let conn = null;
+let waiting = false;       // online, opponent not connected yet
+let roomCode = null;
+let oppLeft = false;
+
+/* ---------- rendering ---------- */
+
+function statusText(){
+  if(oppLeft) return "Opponent left the game";
+  if(mode === "online" && waiting) return "Waiting for opponent to join…";
+  if(S.over){
+    if(S.reason === "checkmate") return "Checkmate! " + (S.winner==="w"?"White":"Black") + " wins" +
+      (mode==="online" ? (S.winner===myColor ? " — you win! 🎉" : " — you lose") : "");
+    if(S.reason === "resign") return (S.winner==="w"?"White":"Black") + " wins by resignation" +
+      (mode==="online" ? (S.winner===myColor ? " — you win!" : " — you lose") : "");
+    return "Draw — " + S.reason;
+  }
+  const t = S.turn==="w" ? "White" : "Black";
+  let s = t + " to move";
+  if(mode === "online") s += (S.turn===myColor ? " — your turn" : " — opponent's turn");
+  if(C.inCheck(S, S.turn)) s += " — Check!";
+  return s;
+}
+
+function render(){
+  const boardEl = document.getElementById("board");
+  boardEl.innerHTML = "";
+  const checkSq = C.inCheck(S, S.turn) && !S.over ? C.findKing(S.board, S.turn) : null;
+  for(let r=0;r<8;r++) for(let c=0;c<8;c++){
+    const div = document.createElement("div");
+    div.className = "sq " + ((r+c)%2===0 ? "light" : "dark");
+    const p = S.board[r][c];
+    if(p){
+      const span = document.createElement("span");
+      span.className = "pc " + p.c;
+      span.textContent = GLYPH[p.c][p.t];
+      div.appendChild(span);
+    }
+    if(S.lastMove && ((S.lastMove.fr===r&&S.lastMove.fc===c)||(S.lastMove.tr===r&&S.lastMove.tc===c)))
+      div.classList.add("last");
+    if(selected && selected[0]===r && selected[1]===c) div.classList.add("sel");
+    if(checkSq && checkSq[0]===r && checkSq[1]===c) div.classList.add("check");
+    const mv = legal.find(x=>x.tr===r && x.tc===c);
+    if(mv){
+      const marker = document.createElement("div");
+      marker.className = S.board[r][c] || mv.ep ? "ring" : "dot";
+      div.appendChild(marker);
+    }
+    const fileLbl = document.createElement("span");
+    fileLbl.className="coord file"; fileLbl.textContent = C.FILES[c];
+    div.appendChild(fileLbl);
+    if(c===0){
+      const rankLbl = document.createElement("span");
+      rankLbl.className="coord rank"; rankLbl.textContent = 8-r;
+      div.appendChild(rankLbl);
+    }
+    div.addEventListener("click", ()=>onSquare(r,c));
+    boardEl.appendChild(div);
+  }
+  document.getElementById("status").textContent = statusText();
+  document.getElementById("cap-w").innerHTML =
+    '<span class="lbl">White captured:</span>' + S.captured.w.map(t=>GLYPH.b[t]).join("");
+  document.getElementById("cap-b").innerHTML =
+    '<span class="lbl">Black captured:</span>' + S.captured.b.map(t=>GLYPH.w[t]).join("");
+  const movesEl = document.getElementById("moves");
+  let html = "";
+  for(let i=0;i<S.moves.length;i+=2){
+    html += `<div class="mrow"><span class="mnum">${i/2+1}.</span><span>${S.moves[i]}</span><span>${S.moves[i+1]||""}</span></div>`;
+  }
+  movesEl.innerHTML = html;
+  movesEl.scrollTop = movesEl.scrollHeight;
+
+  const undoBtn = document.getElementById("undo");
+  undoBtn.disabled = (mode === "online") || history.length === 0;
+  const newBtn = document.getElementById("new");
+  newBtn.textContent = mode === "online"
+    ? (S.over ? "Rematch" : "Leave")
+    : "New Game";
+  document.getElementById("room-code").style.display =
+    (mode === "online" && roomCode) ? "block" : "none";
+}
+
+/* ---------- game actions ---------- */
+
+function doMoveLocal(m, promo){
+  history.push(C.cloneState(S));
+  C.playMove(S, m, promo);
+  selected = null; legal = [];
+  render();
+}
+
+function sendMove(m, promo){
+  // apply locally so the mover's board updates, then relay to the peer
+  C.playMove(S, m, promo);
+  selected = null; legal = [];
+  render();
+  const msg = { type:"move", fr:m.fr, fc:m.fc, tr:m.tr, tc:m.tc };
+  if(promo) msg.promo = promo;
+  sendOnline(msg);
+}
+
+function onSquare(r,c){
+  if(S.over || waiting || oppLeft) return;
+  const p = S.board[r][c];
+  if(mode === "online" && p && p.c !== myColor) return;
+
+  if(selected){
+    const m = legal.find(x=>x.tr===r && x.tc===c);
+    if(m){
+      if(m.promo){
+        pendingPromo = m;
+        showPromo(S.board[m.fr][m.fc].c); // color of the moving pawn, not the target square
+        return;
+      }
+      if(mode === "local") doMoveLocal(m, null);
+      else sendMove(m, null);
+      return;
+    }
+  }
+  if(p && (mode === "local" ? p.c === S.turn : p.c === myColor)){
+    selected = [r,c];
+    legal = C.legalMoves(S, r, c);
+  } else {
+    selected = null; legal = [];
+  }
+  render();
+}
+
+function showPromo(color){
+  const el = document.getElementById("promo");
+  const box = document.getElementById("promo-choices");
+  box.innerHTML = "";
+  for(const t of ["q","r","b","n"]){
+    const btn = document.createElement("button");
+    btn.textContent = GLYPH[color][t];
+    btn.addEventListener("click", ()=>{
+      el.classList.add("hidden");
+      const m = pendingPromo;
+      pendingPromo = null;
+      selected = null; legal = [];
+      if(mode === "local") doMoveLocal(m, t);
+      else sendMove(m, t);
+    });
+    box.appendChild(btn);
+  }
+  el.classList.remove("hidden");
+}
+
+/* ---------- online (PeerJS P2P — no server needed) ---------- */
+
+const CODE_CHARS = "ABCDEFGHJKMNPQRSTUVWXYZ23456789"; // no 0/O, 1/I/L
+function makeRoomCode(){
+  let s = "";
+  for(let i=0;i<4;i++) s += CODE_CHARS[Math.floor(Math.random()*CODE_CHARS.length)];
+  return s;
+}
+
+let pendingJoinCode = null;
+
+function newPeer(id){
+  if(peer && !peer.destroyed) peer.destroy();
+  peer = new Peer(id); // id=null → random id (joiner)
+  peer.on("open", (pid) => {
+    if(id){ // creator: our peer id IS the room code
+      roomCode = pid;
+      document.getElementById("room-code-val").textContent = pid;
+      render();
+    }
+    if(pendingJoinCode){
+      const c = peer.connect(pendingJoinCode, { reliable: true });
+      pendingJoinCode = null;
+      wireConn(c);
+    }
+  });
+  peer.on("connection", (c) => {
+    if(conn) { c.close(); return; } // already paired
+    conn = c;
+    wireConn(c);
+  });
+  peer.on("error", (err) => {
+    if(err.type === "unavailable-id" && id){
+      newPeer(makeRoomCode()); // code collision — retry with a fresh one
+    } else if(err.type === "peer-unavailable"){
+      setLobbyErr("Room not found — check the code");
+      backToLobby();
+    } else {
+      console.error("peer error:", err.type);
+    }
+  });
+  peer.on("disconnected", () => {
+    if(peer && !peer.destroyed) peer.reconnect();
+  });
+}
+
+function wireConn(c){
+  conn = c;
+  c.on("open", () => { waiting = false; render(); });
+  c.on("data", (d) => {
+    let msg;
+    try { msg = JSON.parse(d); } catch { return; }
+    handleOnlineMsg(msg);
+  });
+  c.on("close", () => { oppLeft = true; render(); });
+  c.on("error", (e) => console.error("connection error:", e));
+}
+
+function sendOnline(msg){
+  if(conn && conn.open) conn.send(JSON.stringify(msg));
+}
+
+function handleOnlineMsg(msg){
+  switch(msg.type){
+    case "move": {
+      // Accept a move only when it's the opponent's turn (reject if it's my own turn = out-of-order).
+      // playMove below does the real legality + piece-color validation.
+      if(S.over || S.turn === myColor) return;
+      const res = C.playMove(S, {fr:msg.fr, fc:msg.fc, tr:msg.tr, tc:msg.tc}, msg.promo || undefined);
+      if(res){ selected = null; legal = []; render(); }
+      break;
+    }
+    case "resign":
+      if(S.over) return;
+      S.over = true; S.winner = msg.winner; S.reason = "resign";
+      render();
+      break;
+    case "new":
+      if(!S.over) return;
+      S = C.initialState();
+      history = [];
+      selected = null; legal = [];
+      render();
+      break;
+  }
+}
+
+function startOnline(action){
+  setLobbyErr("");
+  mode = "online";
+  S = C.initialState();
+  history = [];
+  selected = null; legal = [];
+  oppLeft = false;
+  waiting = true;
+  document.getElementById("lobby").classList.add("hidden");
+  render();
+  if(action === "create"){
+    myColor = "w";
+    newPeer(makeRoomCode());
+  } else {
+    const code = document.getElementById("join-code").value.trim().toUpperCase();
+    if(code.length < 4){ setLobbyErr("Enter a 4-character code"); return; }
+    myColor = "b";
+    pendingJoinCode = code;
+    newPeer(null);
+  }
+}
+
+function setLobbyErr(msg){
+  document.getElementById("lobby-err").textContent = msg || "";
+}
+
+function backToLobby(){
+  if(peer){ try { peer.destroy(); } catch {} peer = null; }
+  conn = null;
+  pendingJoinCode = null;
+  mode = "local";
+  myColor = null;
+  roomCode = null;
+  waiting = false;
+  oppLeft = false;
+  S = C.initialState();
+  history = [];
+  selected = null; legal = [];
+  pendingPromo = null;
+  document.getElementById("promo").classList.add("hidden");
+  document.getElementById("lobby").classList.remove("hidden");
+  render();
+}
+
+/* ---------- buttons ---------- */
+
+document.getElementById("btn-local").addEventListener("click", ()=>{
+  mode = "local";
+  S = C.initialState();
+  history = [];
+  selected = null; legal = [];
+  document.getElementById("lobby").classList.add("hidden");
+  render();
+});
+
+document.getElementById("btn-create").addEventListener("click", ()=>startOnline("create"));
+
+document.getElementById("btn-join").addEventListener("click", ()=>startOnline("join"));
+document.getElementById("join-code").addEventListener("keydown", (e)=>{
+  if(e.key === "Enter") startOnline("join");
+});
+
+document.getElementById("new").addEventListener("click", ()=>{
+  if(mode === "online"){
+    if(S.over){
+      // reset locally AND tell the peer
+      S = C.initialState();
+      history = [];
+      selected = null; legal = [];
+      pendingPromo = null;
+      document.getElementById("promo").classList.add("hidden");
+      render();
+      sendOnline({type:"new"});
+    }
+    else backToLobby();
+  } else {
+    S = C.initialState();
+    history = [];
+    selected = null; legal = [];
+    pendingPromo = null;
+    document.getElementById("promo").classList.add("hidden");
+    render();
+  }
+});
+
+document.getElementById("undo").addEventListener("click", ()=>{
+  if(mode === "online" || !history.length) return;
+  S = history.pop();
+  selected = null; legal = [];
+  pendingPromo = null;
+  document.getElementById("promo").classList.add("hidden");
+  render();
+});
+
+document.getElementById("resign").addEventListener("click", ()=>{
+  if(S.over) return;
+  if(mode === "online"){
+    const winner = myColor==="w" ? "b" : "w";
+    // update locally AND tell the peer
+    S.over = true; S.winner = winner; S.reason = "resign";
+    render();
+    sendOnline({type:"resign", winner});
+  } else {
+    S.over = true;
+    S.winner = S.turn==="w" ? "b" : "w";
+    S.reason = "resign";
+    render();
+  }
+});
+
+/* test hook (used by the automated P2P test) */
+window.__test = {
+  state: () => ({ S, mode, myColor, roomCode, waiting, oppLeft }),
+  conn: () => conn,
+  peer: () => peer
+};
+
+render();
+</script>
+</body>
+</html>
