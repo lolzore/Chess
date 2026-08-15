@@ -1,87 +1,73 @@
-# Chess — Local + Online (P2P)
+## Chess
 
-A multiplayer chess game that runs entirely in the browser.
+Play chess right in your browser — **no downloads, no accounts, no installs.**
 
-- **Local mode** — two players share one device (hotseat).
-- **Online mode** — two players on different devices connect **peer-to-peer**
-  over WebRTC (via the free PeerJS cloud). **No game server is required.**
+Play a friend on the same device, or play someone anywhere in the world over the
+internet. Online games connect **peer-to-peer**, so there's no game server —
+just two browsers talking to each other.
 
-This folder is the complete, deployable site. It is pure static files —
-no build step, no backend, no database.
+## How to play
 
-## Files
+## Local (same device)
+Click **Play on this device**. Two players take turns on the same screen —
+classic hotseat. Great for a quick game across the table.
 
-| File             | Purpose                                            |
-|------------------|----------------------------------------------------|
-| `index.html`     | The game (UI, lobby, P2P wiring)                   |
-| `engine.js`      | Chess rules engine (shared by both players)        |
-| `peerjs.min.js`  | PeerJS library (bundled locally, no CDN needed)    |
+## Online (two devices)
+1. One player clicks **Create game** and gets a **4-letter code**.
+2. The other player opens this same page, types the code, and clicks **Join**.
+3. You're matched — the board appears and it's White's move.
 
-## How online play works
+That's it. No sign-ups. The two of you connect directly; the game relayed
+between your browsers in real time.
 
-1. Player A opens the site → **Create game** → gets a 4-letter code.
-2. Player B opens the same site → enters the code → **Join**.
-3. The two browsers use the free PeerJS cloud only to find each other
-   (signaling), then connect **directly** over a WebRTC data channel.
-4. Moves are sent browser-to-browser; both sides validate with the same engine.
+**Tips**
+- You'll always know whose turn it is (the board highlights your pieces).
+- Click a piece to see its legal moves, then click a destination.
+- Pawns reaching the last rank offer a promotion (queen, rook, bishop, or knight).
+- **Resign** ends the game; **New game** starts a rematch with colors swapped.
+- If your opponent closes the tab, you'll be told they left.
 
-Players just need a modern browser and an internet connection (for the
-initial handshake). No accounts, no installs.
+## What's implemented
 
-## Deploy to GitHub Pages
+Full standard chess rules:
 
-You need a GitHub account. Steps:
+- All piece movements and captures
+- Check, **checkmate**, and **stalemate**
+- **Castling** (kingside and queenside)
+- **En passant**
+- **Pawn promotion** with piece choice
+- Draw by **50-move rule** and **insufficient material**
+- Move history in standard algebraic notation (SAN)
 
-1. **Create a repo** on GitHub (e.g. name it `chess`). Leave it empty.
+## How it works (the fun part)
 
-2. **Push these files** to the repo root. From the folder containing these
-   three files:
+There is **no server**. When you create or join a game, your browser pairs with
+your friend's browser using [PeerJS](https://peerjs.com/) and opens a direct
+**WebRTC** connection. After the initial handshake, every move travels straight
+from one browser to the other.
 
-   ```bash
-   git init
-   git add index.html engine.js peerjs.min.js README.md
-   git commit -m "chess game"
-   git branch -M main
-   git remote add origin https://github.com/<YOUR-USERNAME>/chess.git
-   git push -u origin main
-   ```
+Both players run the exact same rules engine, so each side independently checks
+that every incoming move is legal — the two boards can't drift out of sync.
 
-3. **Enable Pages:**
-   - Open your repo on GitHub → **Settings** → **Pages** (left sidebar).
-   - Under **Build and deployment** → **Source**: choose **Deploy from a branch**.
-   - **Branch**: select `main`, folder: **/ (root)** → **Save**.
+Because the game lives entirely in your browser:
+- It works from any static page (this one included) — nothing to host or run.
+- It's as fast as your connection; there's no central server in the loop.
 
-4. **Wait ~1 minute.** GitHub shows your live URL:
+## Browser support
 
-   ```
-   https://<YOUR-USERNAME>.github.io/chess/
-   ```
+Any modern browser: **Chrome, Edge, Firefox, Safari** (desktop or mobile).
+You'll need an internet connection for online games (for the initial handshake);
+local mode works fully offline.
 
-5. **Share that URL.** One player creates a code, the other joins with it. Done.
+## A note on fair play
 
-> The game uses relative paths, so it works correctly under the
-> `/<repo>/` subpath that GitHub Pages provides — no configuration needed.
+The game is built for playing with people you trust. Since the rules run in
+your own browser, a determined player could tamper with it using developer
+tools — both sides validate moves, so casual mistakes and lag never cause a
+desync, but this isn't a rated or anti-cheat environment. For friends and
+casual play, it's perfect.
 
-## Other static hosts (same 3 files)
+---
 
-Any static file host works identically: **Netlify**, **Vercel**,
-**Cloudflare Pages**, **play.it / playit.gg** (drag-and-drop the 3 files),
-or even a plain web server. Just upload `index.html`, `engine.js`, and
-`peerjs.min.js` and open the resulting URL.
-
-## Notes & limitations
-
-- **Free PeerJS cloud** is fine for casual play. For a serious product,
-  self-host a PeerJS signaling server (still no *game* server needed).
-- **NAT traversal**: PeerJS includes default STUN servers, so most networks
-  connect fine. A few strict networks may need a TURN relay.
-- **Trust-based**: game logic runs client-side, so a determined player could
-  tamper in devtools. Both sides validate moves, preventing accidental desync.
-  Great for friends; not for rated/competitive play.
-- **Both players must be online** — it's real-time. If one closes the tab,
-  the other sees "opponent left".
-
-## Run locally (no deploy)
-
-Just open `index.html` in a browser. Local (hotseat) mode works fully offline.
-Online mode needs an internet connection for the PeerJS handshake.
+*Built with vanilla JavaScript. The chess engine and the PeerJS library are
+bundled locally, so the game has no external dependencies.*
