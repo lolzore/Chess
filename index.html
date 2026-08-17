@@ -21,19 +21,54 @@
   #app{display:flex; gap:20px; flex-wrap:wrap; justify-content:center; align-items:flex-start;}
   #board-wrap{position:relative;}
   #board{
-    display:grid; grid-template-columns:repeat(8, minmax(48px, 68px));
-    grid-template-rows:repeat(8, minmax(48px, 68px));
-    border:4px solid #4a3b2a; border-radius:6px; overflow:hidden;
+    display:grid;
+    /* FIXED square size: never reflows (no jitter) and is identical on every client */
+    grid-template-columns:repeat(8, 62px);
+    grid-template-rows:repeat(8, 62px);
+    border:4px solid var(--board-border, #4a3b2a); border-radius:6px; overflow:hidden;
     box-shadow:0 10px 30px rgba(0,0,0,.5);
+  }
+  /* Tarnished metal: a dull, oxidized finish — NOT a glossy glare. Applied as a
+     per-square background layer (below the pieces) so it only affects the board
+     surface, never the pieces. The per-square background-position (set in render)
+     makes the vignette continuous across the whole board. */
+  #board.tarnish .sq{
+    background-image:
+      radial-gradient(145% 145% at 30% 24%, rgba(0,0,0,0) 36%, rgba(14,13,11,.36) 100%),
+      radial-gradient(90% 90% at 72% 80%, rgba(0,0,0,0) 30%, rgba(10,10,9,.22) 100%),
+      var(--grain,none);
+    background-size:496px 496px, 496px 496px, 496px 496px;
+    background-blend-mode:multiply, multiply, overlay;
+  }
+  @media (max-width: 560px){
+    #board{
+      grid-template-columns:repeat(8, 11.5vw);
+      grid-template-rows:repeat(8, 11.5vw);
+    }
+  }
+  /* Keep the board from shifting when the side panel's content changes (room code
+     appears, moves are added). On wide screens the panel sits beside the board, so
+     pin #app to a fixed height: the board stays centered in that fixed box while the
+     panel scrolls if it grows taller. */
+  @media (min-width: 820px){
+    #app{ height:min(92vh, 760px); min-height:520px; }
+    #side{ max-height:100%; overflow-y:auto; }
   }
   .sq{
     position:relative; display:flex; align-items:center; justify-content:center;
     font-size:min(6vw, 46px); line-height:1; cursor:pointer; user-select:none;
   }
-  .sq.light{background:var(--light);} .sq.dark{background:var(--dark);}
-  .sq .pc{transition:transform .08s;}
+  /* base color + procedural grain texture; the 496px grain image is shared by all
+     64 squares (offset per square) so the wood grain / metal brushing is continuous
+     across the whole board */
+  .sq.light{background-color:var(--light); background-image:var(--grain,none); background-size:496px 496px; background-blend-mode:overlay;}
+  .sq.dark{background-color:var(--dark); background-image:var(--grain,none); background-size:496px 496px; background-blend-mode:overlay;}
+  .sq .pc{width:84%; height:84%; display:flex; align-items:center; justify-content:center; transition:transform .08s;}
   .sq .pc.w{color:#fff; text-shadow:0 1px 3px rgba(0,0,0,.6);}
   .sq .pc.b{color:#111; text-shadow:0 1px 2px rgba(255,255,255,.25);}
+  .sq .pc svg{width:100%; height:100%; display:block; filter:drop-shadow(0 2px 2px rgba(0,0,0,.35));}
+  .cap svg{width:15px; height:15px; vertical-align:-2px; margin:0 1px;}
+  #promo .choices button svg{width:42px; height:42px;}
   .sq .coord{
     position:absolute; font-size:10px; font-weight:600; opacity:.55; pointer-events:none;
   }
@@ -121,6 +156,98 @@
   #lobby .joinrow button{flex:1;}
   #lobby-err{color:#e07070; font-size:13px; min-height:16px; text-align:center;}
   hr{border:none; border-top:1px solid #44444f;}
+
+  #moves{scrollbar-gutter:stable;}
+
+  /* ---- clocks ---- */
+  .clocks{display:flex; gap:8px;}
+  .clock{
+    flex:1; text-align:center; padding:8px 6px; border-radius:8px;
+    background:rgba(0,0,0,.25); font-family:ui-monospace,monospace;
+    font-size:16px; font-weight:700; letter-spacing:1px;
+    border:2px solid transparent; transition:border-color .15s, background .15s;
+  }
+  .clock.active{border-color:var(--accent); background:rgba(126,200,227,.15);}
+  .clock.low{color:#e07070;}
+
+  /* ---- player names ---- */
+  #players{display:flex; flex-direction:column; gap:4px; font-size:13px;}
+  #players .pname{display:flex; justify-content:space-between; padding:4px 8px; border-radius:6px; background:rgba(0,0,0,.18);}
+  #players .pname .dot{width:10px; height:10px; border-radius:50%; display:inline-block; margin-right:6px;}
+  #players .pname.w .dot{background:#f0f0f0;}
+  #players .pname.b .dot{background:#222; border:1px solid #666;}
+
+  /* ---- VICTORY / DEFEAT splash (LoL-style) ---- */
+  #splash{
+    position:fixed; inset:0; z-index:300;
+    background:radial-gradient(ellipse at center, rgba(22,22,30,.82), rgba(8,8,12,.96));
+    display:flex; flex-direction:column; align-items:center; justify-content:center; gap:16px;
+  }
+  #splash .splash-text{
+    font-size:min(15vw, 104px); font-weight:900; letter-spacing:10px;
+    animation:splashIn .6s cubic-bezier(.2,.8,.2,1);
+  }
+  #splash .splash-text.win{color:#ffd76a; text-shadow:0 0 42px rgba(255,215,106,.6), 0 4px 12px rgba(0,0,0,.6);}
+  #splash .splash-text.lose{color:#e05a5a; text-shadow:0 0 42px rgba(224,90,90,.55), 0 4px 12px rgba(0,0,0,.6);}
+  #splash .splash-text.draw{color:#cfd2da; text-shadow:0 0 30px rgba(207,210,218,.4);}
+  #splash .splash-sub{font-size:18px; opacity:.85; letter-spacing:2px;}
+  #splash .splash-row{display:flex; gap:14px; margin-top:10px; flex-wrap:wrap; justify-content:center;}
+  #splash .splash-btn{
+    padding:12px 30px; font-size:15px; background:var(--accent); color:#111;
+    border:none; border-radius:8px; font-weight:700; cursor:pointer;
+  }
+  #splash .splash-btn:hover{filter:brightness(1.1);}
+  #splash .splash-btn.secondary{background:transparent; color:var(--text); border:2px solid #55556a;}
+  #splash .splash-btn.secondary:hover{border-color:#8888a0; filter:none;}
+  @keyframes splashIn{
+    0%{transform:scale(2.2); opacity:0;}
+    60%{transform:scale(.95); opacity:1;}
+    100%{transform:scale(1);}
+  }
+
+  /* ---- undo request prompt ---- */
+  #undo-prompt{
+    position:fixed; inset:0; z-index:250;
+    background:rgba(0,0,0,.6); display:flex; align-items:center; justify-content:center;
+  }
+  #undo-prompt .box{
+    background:var(--panel); border-radius:12px; padding:22px 26px; text-align:center;
+    max-width:320px; box-shadow:0 10px 40px rgba(0,0,0,.6);
+  }
+  #undo-prompt .box p{margin-bottom:16px; font-weight:600; font-size:15px;}
+  #undo-prompt .row{display:flex; gap:10px;}
+  #undo-prompt .row button{flex:1; padding:11px; font-size:14px;}
+  #undo-accept{background:#5a9e6f;} #undo-accept:hover{background:#67b57e;}
+  #undo-reject{background:#8a5555;} #undo-reject:hover{background:#a06666;}
+
+  /* ---- lobby settings ---- */
+  #lobby select, #lobby .name-input{
+    padding:10px; border-radius:7px; border:1px solid #4a4a58;
+    background:#1e1e24; color:var(--text); font-size:14px; width:100%;
+  }
+  #lobby .settings{display:flex; flex-direction:column; gap:10px;}
+  #lobby .settings .field{display:flex; flex-direction:column; gap:4px;}
+  #lobby .settings label{font-size:11px; opacity:.6; text-transform:uppercase; letter-spacing:.5px;}
+
+  /* ---- in-game appearance (side panel) ---- */
+  #side .appearance{margin-top:2px;}
+  #side .appearance .app-label{font-size:11px; opacity:.6; text-transform:uppercase; letter-spacing:.5px; display:block; margin-bottom:6px;}
+  #side .appearance .app-row{display:flex; flex-direction:column; gap:6px;}
+  #side .appearance select{
+    padding:8px; border-radius:7px; border:1px solid #4a4a58;
+    background:#1e1e24; color:var(--text); font-size:13px; width:100%;
+  }
+  /* Frantic red border: your clock is in the last few % — a pulsing vignette
+     that makes the endgame feel urgent. Only shown for YOUR clock. */
+  body.frantic::before{
+    content:""; position:fixed; inset:0; pointer-events:none; z-index:9999;
+    box-shadow: inset 0 0 120px 40px rgba(220, 30, 30, 0.5);
+    animation: franticPulse 0.55s ease-in-out infinite;
+  }
+  @keyframes franticPulse{
+    0%, 100% { box-shadow: inset 0 0 70px 18px rgba(220, 30, 30, 0.30); }
+    50%      { box-shadow: inset 0 0 170px 55px rgba(235, 20, 20, 0.68); }
+  }
 </style>
 </head>
 <body>
@@ -128,6 +255,24 @@
 <div id="lobby">
   <div class="card">
     <h1>♞ Chess</h1>
+    <div class="settings">
+      <div class="field">
+        <label>Your name (optional)</label>
+        <input id="set-name" class="name-input" maxlength="16" placeholder="Player" autocomplete="off">
+      </div>
+      <div class="field">
+        <label>Time control</label>
+        <select id="set-time">
+          <option value="0">Unlimited</option>
+          <option value="180000">3 min (blitz)</option>
+          <option value="300000">5 min (blitz)</option>
+          <option value="600000">10 min (rapid)</option>
+          <option value="900000">15 min (rapid)</option>
+          <option value="1800000">30 min (classical)</option>
+        </select>
+      </div>
+    </div>
+    <hr>
     <div class="opt">
       <h3>Local</h3>
       <button id="btn-local">Play on this device</button>
@@ -158,6 +303,14 @@
   <div id="side">
     <h1>♞ Chess</h1>
     <div id="room-code">Room code: <code id="room-code-val"></code><br><span style="font-weight:400;font-size:12px">Share this code with your opponent</span></div>
+    <div id="players">
+      <div class="pname w"><span><span class="dot"></span><span id="name-w">White</span></span></div>
+      <div class="pname b"><span><span class="dot"></span><span id="name-b">Black</span></span></div>
+    </div>
+    <div class="clocks" id="clocks">
+      <div class="clock" id="clock-w">--:--</div>
+      <div class="clock" id="clock-b">--:--</div>
+    </div>
     <div id="status"></div>
     <div class="cap" id="cap-w"><span class="lbl">White captured:</span></div>
     <div class="cap" id="cap-b"><span class="lbl">Black captured:</span></div>
@@ -166,6 +319,43 @@
       <button id="new">New Game</button>
       <button id="undo">Undo</button>
       <button id="resign">Resign</button>
+    </div>
+    <div class="appearance">
+      <span class="app-label">Board &amp; pieces</span>
+      <div class="app-row">
+        <select id="set-theme">
+          <option value="classic">Board: Wood grain (classic)</option>
+          <option value="wood">Board: Dark wood grain</option>
+          <option value="blue">Board: Brushed steel</option>
+          <option value="green">Board: Tournament felt</option>
+        </select>
+        <select id="set-pieces">
+          <option value="svg">Pieces: Modern (vector)</option>
+          <option value="wood">Pieces: Carved wood</option>
+          <option value="metal">Pieces: Brushed metal</option>
+          <option value="marble">Pieces: Marble</option>
+          <option value="outline">Pieces: Line art</option>
+          <option value="unicode">Pieces: Unicode</option>
+        </select>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div id="splash" class="hidden">
+  <div class="splash-text" id="splash-text">VICTORY</div>
+  <div class="splash-sub" id="splash-sub"></div>
+  <div class="splash-row">
+    <button class="splash-btn" id="splash-btn">Play Again</button>
+    <button class="splash-btn secondary" id="splash-view">View Board</button>
+  </div>
+</div>
+<div id="undo-prompt" class="hidden">
+  <div class="box">
+    <p id="undo-prompt-text">Opponent requests to undo the last move.</p>
+    <div class="row">
+      <button id="undo-accept">Accept</button>
+      <button id="undo-reject">Reject</button>
     </div>
   </div>
 </div>
@@ -189,6 +379,325 @@ let conn = null;
 let waiting = false;       // online, opponent not connected yet
 let roomCode = null;
 let oppLeft = false;
+
+/* ---------- customization: themes + piece sets ---------- */
+const THEMES = {
+  classic: { light:"#f0d9b5", dark:"#b58863", border:"#4a3b2a", tex:"wood",  texSeed:11 },
+  green:   { light:"#eeeed2", dark:"#769656", border:"#5a7a4a", tex:"felt",  texSeed:5  },
+  blue:    { light:"#dee3e6", dark:"#4b7399", border:"#33506e", tex:"metal", texSeed:23 },
+  wood:    { light:"#e6c89a", dark:"#a0693b", border:"#5a3a1a", tex:"wood",  texSeed:47 }
+};
+
+/* ---------- procedural board textures ----------
+   Noise math: seeded VALUE noise (random values on an integer lattice, interpolated
+   with a C2-quintic smoothstep) summed as fBm (fractal Brownian motion:
+   sum of octaves, frequency x2, amplitude x0.5). fBm of value noise is the standard
+   for natural materials — it is visually equivalent to Perlin noise at texture
+   scales, cheaper to compute, and free of directional artifacts.
+   Wood grain: low-frequency fBm WARPS horizontal sine "growth lines"
+   (sin((y*k + warp)*pi)) + a fine high-frequency grain octave + slow dark streaks.
+   Brushed metal: ANISOTROPIC fBm — low frequency along x, high along y — stretches
+   the noise into horizontal brush streaks, plus a matte mottle octave and a
+   vertical sheen gradient.
+   The result is a grayscale 50%-gray-based image blended OVER the square's base
+   color (CSS background-blend-mode: overlay), so one texture serves both shades. */
+function mulberry32(seed){
+  return function(){
+    seed |= 0; seed = (seed + 0x6D2B79F5) | 0;
+    let t = Math.imul(seed ^ (seed >>> 15), 1 | seed);
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+function makeFbm(seed){
+  const rand = mulberry32(seed);
+  const perm = new Uint8Array(512);
+  const p = new Uint8Array(256);
+  for(let i=0;i<256;i++) p[i]=i;
+  for(let i=255;i>0;i--){ const j=(rand()*(i+1))|0; const tmp=p[i]; p[i]=p[j]; p[j]=tmp; }
+  for(let i=0;i<512;i++) perm[i]=p[i&255];
+  const vals = new Float32Array(256);
+  for(let i=0;i<256;i++) vals[i]=rand()*2-1;
+  function val(ix,iy){ return vals[perm[(perm[ix&255]+iy)&255]]; }
+  function noise(x,y){
+    const ix=Math.floor(x), iy=Math.floor(y);
+    const fx=x-ix, fy=y-iy;
+    const u=fx*fx*fx*(fx*(fx*6-15)+10);   // quintic smoothstep (C2)
+    const v=fy*fy*fy*(fy*(fy*6-15)+10);
+    const a=val(ix,iy), b=val(ix+1,iy), c=val(ix,iy+1), d=val(ix+1,iy+1);
+    return a+(b-a)*u+(c-a)*v+(a-b-c+d)*u*v;
+  }
+  return function fbm(x,y,oct){
+    let sum=0, amp=0.5, f=1, norm=0;
+    for(let i=0;i<oct;i++){ sum+=amp*noise(x*f,y*f); norm+=amp; amp*=0.5; f*=2; }
+    return sum/norm; // -1..1
+  };
+}
+const TEX_SIZE = 496; // 8 x 62px squares — one image covers the whole board
+const grainCache = {};
+function makeGrain(kind, seed){
+  const cv = document.createElement("canvas");
+  cv.width = TEX_SIZE; cv.height = TEX_SIZE;
+  const ctx = cv.getContext("2d");
+  const img = ctx.createImageData(TEX_SIZE, TEX_SIZE);
+  const d = img.data;
+  const fbm  = makeFbm(seed);
+  const fbm2 = makeFbm(seed*7+13);
+  const fbm3 = makeFbm(seed*13+29);
+  for(let y=0;y<TEX_SIZE;y++){
+    for(let x=0;x<TEX_SIZE;x++){
+      const nx=x/TEX_SIZE, ny=y/TEX_SIZE;
+      let v;
+      if(kind==="wood"){
+        const tone   = fbm(nx*1.3, ny*1.3, 3) - 0.5;           // slow light/dark patches
+        const fine   = fbm2(nx*90, ny*90, 4) - 0.5;            // fine grain
+        const fiber  = fbm3(nx*220, ny*40, 3) - 0.5;           // fine wood fibers (stretched)
+        v = 0.72 + 0.10*tone + 0.12*fine + 0.08*fiber;
+      } else if(kind==="metal"){
+        const brush  = fbm(nx*1.6, ny*48, 3);                  // brushed streaks (horizontal)
+        const mottle = fbm2(nx*4.5, ny*4.5, 4);                // matte mottle
+        const sheen  = 0.5 - ny;                                // vertical sheen
+        v = 0.5 + 0.16*brush + 0.10*mottle + 0.10*sheen;
+      } else { // felt (tournament cloth)
+        v = 0.5 + 0.07*fbm(nx*55, ny*55, 3) + 0.04*fbm2(nx*12, ny*12, 2);
+      }
+      v = Math.max(0, Math.min(1, v));
+      const i = (y*TEX_SIZE + x)*4;
+      const g = Math.round(v*255);
+      d[i]=g; d[i+1]=g; d[i+2]=g; d[i+3]=255;
+    }
+  }
+  ctx.putImageData(img,0,0);
+  return cv.toDataURL();
+}
+
+/* ---------- piece rendering: vector (SVG) sets ----------
+   Each piece is a small set of SVG shapes on a 45x45 viewBox (standard chess
+   piece grid), drawn with a consistent fill + outline style and a common
+   baseline, so the whole set looks coherent. Two styles:
+   "svg"     — solid pieces (cream/dark with contrasting outline)
+   "outline" — line art: a light halo stroke under a dark stroke (readable
+               on both light and dark squares) */
+const PIECE_SHAPES = {
+  p:[ {tag:"circle",a:{cx:22.5,cy:13.5,r:5.6}},
+      {tag:"path",a:{d:"M22.5 19.1 C19.3 22.6 17.6 25.8 17.6 29 C17.6 30.9 27.4 30.9 27.4 29 C27.4 25.8 25.7 22.6 22.5 19.1 Z"}},
+      {tag:"rect",a:{x:14.2,y:30.6,width:16.6,height:4.6,rx:2}},
+      {tag:"rect",a:{x:11.2,y:35.6,width:22.6,height:5.4,rx:2.2}} ],
+  r:[ {tag:"path",a:{d:"M12.5 7.5 L17 7.5 L17 11.5 L20 11.5 L20 7.5 L25 7.5 L25 11.5 L28 11.5 L28 7.5 L32.5 7.5 L32.5 16.5 L29 19.5 L29 31.5 L32.5 34.5 L32.5 41 L12.5 41 L12.5 34.5 L16 31.5 L16 19.5 L12.5 16.5 Z"}} ],
+  n:[ {tag:"path",a:{d:"M22 10 C32.5 11 38.5 18 38 39 L15 39 C15 30 25 32.5 23 18"}},
+      {tag:"path",a:{d:"M24 18 C24.38 20.91 18.45 25.37 16 27 C13 29 13.18 31.34 11 31 C9.958 30.06 12.41 27.96 11 28 C10 28 11.19 29.23 10 30 C9 30 5.997 31 6 26 C6 24 12 14 12 14 C12 14 13.89 12.1 14 10.5 C13.27 9.506 13.5 8.5 13.5 7.5 C14.5 6.5 16.5 10 16.5 10 L18.5 10 C18.5 10 19.28 8.008 21 7 C22 7 22 10 22 10"}},
+      {tag:"circle",a:{cx:9,cy:25.5,r:1.1},detail:true},
+      {tag:"ellipse",a:{cx:14.5,cy:15.5,rx:0.6,ry:1.2},detail:true} ],
+  b:[ {tag:"circle",a:{cx:22.5,cy:5.8,r:2.3}},
+      {tag:"path",a:{d:"M22.5 8.2 C27.5 13.2 29.5 17.2 29.5 21.5 C29.5 25.4 26.3 27.4 22.5 27.4 C18.7 27.4 15.5 25.4 15.5 21.5 C15.5 17.2 17.5 13.2 22.5 8.2 Z"}},
+      {tag:"path",a:{d:"M22.5 12.5 L24.1 16.5 L22.5 20.5 L20.9 16.5 Z"},detail:true},
+      {tag:"ellipse",a:{cx:22.5,cy:29.6,rx:7.6,ry:2.9}},
+      {tag:"path",a:{d:"M16.6 31.8 C15.6 33.8 14.6 35.2 13.6 36.6 L31.4 36.6 C30.4 35.2 29.4 33.8 28.4 31.8 Z"}},
+      {tag:"rect",a:{x:11,y:36.8,width:23,height:4.4,rx:2}} ],
+  q:[ {tag:"path",a:{d:"M10.5 10 L14 25 L17.5 11 L20.5 25 L22.5 9 L24.5 25 L27.5 11 L31 25 L34.5 10 L32.6 30 L12.4 30 Z"}},
+      {tag:"circle",a:{cx:10.5,cy:8.8,r:2}},
+      {tag:"circle",a:{cx:17.5,cy:9.8,r:2}},
+      {tag:"circle",a:{cx:22.5,cy:8.2,r:2}},
+      {tag:"circle",a:{cx:27.5,cy:9.8,r:2}},
+      {tag:"circle",a:{cx:34.5,cy:8.8,r:2}},
+      {tag:"path",a:{d:"M12.4 30 C11.4 33 10.9 35.4 10.4 38 L34.6 38 C34.1 35.4 33.6 33 32.6 30 Z"}},
+      {tag:"rect",a:{x:10,y:38.2,width:25,height:3.2,rx:1.6}} ],
+  k:[ {tag:"circle",a:{cx:22.5,cy:3.5,r:2}},
+      {tag:"rect",a:{x:21,y:3,width:3,height:16}},
+      {tag:"rect",a:{x:17.5,y:8,width:10,height:3.2}},
+      {tag:"ellipse",a:{cx:22.5,cy:19,rx:8.5,ry:2.6}},
+      {tag:"path",a:{d:"M15 41 L15 37 C16 33 16 29 15.5 25.5 C15 21.5 17.5 19.5 22.5 19 C27.5 19.5 30 21.5 29.5 25.5 C29 29 29 33 30 37 L30 41 Z"}},
+      {tag:"rect",a:{x:12.5,y:38.5,width:20,height:4.5,rx:2}} ]
+};
+const PIECE_GLYPHS = { // unicode fallback set (filled glyphs, colored via CSS)
+  w:{k:"\u265A",q:"\u265B",r:"\u265C",b:"\u265D",n:"\u265E",p:"\u265F"},
+  b:{k:"\u265A",q:"\u265B",r:"\u265C",b:"\u265D",n:"\u265E",p:"\u265F"}
+};
+const PIECE_SETS = { svg:"Modern (vector)", outline:"Line art", unicode:"Unicode", wood:"Carved wood", metal:"Brushed metal", marble:"Marble" };
+function shapeStr(sh, attrs){
+  const a = Object.assign({}, sh.a, attrs);
+  return "<" + sh.tag + " " + Object.keys(a).map(k=>k+'="'+a[k]+'"').join(" ") + "/>";
+}
+function pieceSVG(t, color, style){
+  const shapes = PIECE_SHAPES[t];
+  const P = (style === "outline")
+    ? { w:{fill:"rgba(255,255,255,.05)", stroke:"#f2efe6", halo:"#2a2722"},
+        b:{fill:"rgba(0,0,0,.20)",       stroke:"#2b2925", halo:"#f2efe6"} }
+    : { w:{fill:"#f8f5ec", stroke:"#45413a"},
+        b:{fill:"#33302c", stroke:"#d8d4c8"} };
+  const c = P[color];
+  let inner = "";
+  if(style === "outline"){
+    for(const sh of shapes){ if(sh.detail) continue;
+      inner += shapeStr(sh, {fill:"none", stroke:c.halo, "stroke-width":4.6, "stroke-linejoin":"round"}); }
+    for(const sh of shapes){
+      if(sh.detail){ inner += shapeStr(sh, {fill:c.stroke, stroke:"none"}); continue; }
+      inner += shapeStr(sh, {fill:c.fill, stroke:c.stroke, "stroke-width":1.7, "stroke-linejoin":"round"}); }
+  } else {
+    for(const sh of shapes){
+      if(sh.detail){ inner += shapeStr(sh, {fill:c.stroke, stroke:"none"}); continue; }
+      inner += shapeStr(sh, {fill:c.fill, stroke:c.stroke, "stroke-width":1.7, "stroke-linejoin":"round"}); }
+  }
+  return '<svg viewBox="0 0 45 45" aria-hidden="true">' + inner + '</svg>';
+}
+/* ---------- textured (material) piece sets ----------
+   Each piece is filled with a procedural MATERIAL tile (wood grain / brushed
+   metal / marble) generated with the same fBm noise as the board, then shaded
+   with a vertical light->dark gradient for a 3D "carved" look, and outlined.
+   The material tiles + clip-paths live in ONE hidden SVG sprite (defined once,
+   referenced by every piece) so the texture data is not duplicated per piece. */
+const MATERIALS = {
+  wood: {
+    w:{ base:[224,192,148], dark:[138,90,46],  light:[247,225,188], out:"#5a3a1e", seed:11, veinT:0 },
+    b:{ base:[104,66,36],   dark:[38,21,11],   light:[152,102,60],  out:"#160d06", seed:47, veinT:0 }
+  },
+  metal: {
+    w:{ base:[222,226,231], dark:[118,124,134], light:[252,254,255], out:"#565b64", seed:23, veinT:0 },
+    b:{ base:[74,78,86],    dark:[20,22,26],    light:[130,134,142], out:"#08090b", seed:59, veinT:0 }
+  },
+  marble: {
+    w:{ base:[240,240,234], dark:[166,166,160], light:[255,255,252], out:"#8a8a84", seed:71, veinT:0.12 },
+    b:{ base:[58,58,62],    dark:[16,16,20],    light:[150,150,156], out:"#0a0a0c", seed:83, veinT:0.88 }
+  }
+};
+const matTileCache = {};
+function makeMaterialTile(material, colorKey){
+  const key = material + "-" + colorKey;
+  if(matTileCache[key]) return matTileCache[key];
+  const M = MATERIALS[material][colorKey];
+  const S = 90;
+  const cv = document.createElement("canvas");
+  cv.width = S; cv.height = S;
+  const ctx = cv.getContext("2d");
+  const img = ctx.createImageData(S, S);
+  const d = img.data;
+  const fbm  = makeFbm(M.seed);
+  const fbm2 = makeFbm(M.seed*7+13);
+  const fbm3 = makeFbm(M.seed*13+29);
+  for(let y=0;y<S;y++){
+    for(let x=0;x<S;x++){
+      const nx=x/S, ny=y/S;
+      let t;
+      if(material === "wood"){
+        const tone  = fbm(nx*1.3, ny*1.3, 3) - 0.5;
+        const fine  = fbm2(nx*80, ny*80, 4) - 0.5;
+        const fiber = fbm3(nx*200, ny*36, 3) - 0.5;
+        t = 0.62 + 0.12*tone + 0.12*fine + 0.08*fiber;
+      } else if(material === "metal"){
+        const brush  = fbm(nx*1.8, ny*55, 3);
+        const mottle = fbm2(nx*5, ny*5, 4);
+        t = 0.5 + 0.30*brush + 0.14*mottle;
+      } else { // marble: faint base mottle + sparse wavy veins
+        const base = fbm2(nx*8, ny*8, 3);
+        const vein = Math.sin((nx*6 + fbm(nx*3, ny*3, 4)*2.6) * Math.PI);
+        const v = Math.pow(Math.abs(vein), 7);
+        t = (0.5 + 0.10*base) * (1 - v) + M.veinT * v;
+      }
+      t = Math.max(0, Math.min(1, t));
+      const i = (y*S + x)*4;
+      d[i]   = Math.round(M.dark[0] + (M.light[0]-M.dark[0])*t);
+      d[i+1] = Math.round(M.dark[1] + (M.light[1]-M.dark[1])*t);
+      d[i+2] = Math.round(M.dark[2] + (M.light[2]-M.dark[2])*t);
+      d[i+3] = 255;
+    }
+  }
+  ctx.putImageData(img,0,0);
+  matTileCache[key] = cv.toDataURL();
+  return matTileCache[key];
+}
+let textureSpriteBuilt = false;
+function ensureTextureSprite(){
+  if(textureSpriteBuilt) return;
+  textureSpriteBuilt = true;
+  let defs = "";
+  for(const t in PIECE_SHAPES){
+    const shapes = PIECE_SHAPES[t].filter(sh => !sh.detail).map(shapeStr).join("");
+    defs += '<clipPath id="txclip-'+t+'">'+shapes+'</clipPath>';
+  }
+  for(const mat in MATERIALS) for(const ck of ["w","b"]){
+    defs += '<pattern id="txpat-'+mat+'-'+ck+'" patternUnits="userSpaceOnUse" width="45" height="45">'
+          + '<image href="'+makeMaterialTile(mat, ck)+'" width="45" height="45"/></pattern>';
+  }
+  defs += '<linearGradient id="txshade" x1="0" y1="0" x2="0" y2="1">'
+        + '<stop offset="0" stop-color="#fff" stop-opacity="0.42"/>'
+        + '<stop offset="0.5" stop-color="#fff" stop-opacity="0"/>'
+        + '<stop offset="1" stop-color="#000" stop-opacity="0.34"/></linearGradient>';
+  const sprite = '<svg width="0" height="0" style="position:absolute" aria-hidden="true"><defs>'+defs+'</defs></svg>';
+  if(document.body && document.body.insertAdjacentHTML) document.body.insertAdjacentHTML("afterbegin", sprite);
+}
+function texturedPieceSVG(t, color, material){
+  ensureTextureSprite();
+  const M = MATERIALS[material][color];
+  const shapes = PIECE_SHAPES[t].filter(sh => !sh.detail).map(shapeStr).join("");
+  return '<svg viewBox="0 0 45 45" aria-hidden="true">'
+    + '<g clip-path="url(#txclip-'+t+')">'
+    + '<rect width="45" height="45" fill="url(#txpat-'+material+'-'+color+')"/>'
+    + '<rect width="45" height="45" fill="url(#txshade)"/></g>'
+    + '<g fill="none" stroke="'+M.out+'" stroke-width="1.1" stroke-linejoin="round">'+shapes+'</g>'
+    + '</svg>';
+}
+function pieceHTML(t, color){
+  if(settings.pieces === "unicode") return PIECE_GLYPHS[color][t];
+  if(MATERIALS[settings.pieces]) return texturedPieceSVG(t, color, settings.pieces);
+  return pieceSVG(t, color, settings.pieces);
+}
+const DEFAULT_SETTINGS = { theme:"green", pieces:"wood", time:0, name:"" };
+function loadSettings(){
+  try {
+    if(typeof localStorage !== "undefined")
+      return Object.assign({}, DEFAULT_SETTINGS, JSON.parse(localStorage.getItem("chess-settings") || "{}"));
+  } catch {}
+  return Object.assign({}, DEFAULT_SETTINGS);
+}
+function saveSettings(){ try { if(typeof localStorage !== "undefined") localStorage.setItem("chess-settings", JSON.stringify(settings)); } catch {} }
+let settings = loadSettings();
+if(!PIECE_SETS[settings.pieces]) settings.pieces = "svg"; // migrate old names (filled/classic)
+
+/* ---------- clock state ---------- */
+let timeControl = 0;      // ms per side, 0 = unlimited
+let times = { w:0, b:0 }; // ms remaining per side
+
+/* ---------- clock ticking sound + frantic mode ----------
+   A short mechanical tick plays only while YOUR clock is running. The tick
+   RATE is a pure function of the fraction of your time left, so a 10-min
+   game's final minute sounds as frantic as a 30-min game's final 3 minutes
+   (both at 10% remaining). */
+let audioCtx = null;
+function getAudioCtx(){
+  if(!audioCtx){
+    try { audioCtx = new (window.AudioContext || window.webkitAudioContext)(); } catch(e) { audioCtx = null; }
+  }
+  if(audioCtx && audioCtx.state === "suspended") audioCtx.resume();
+  return audioCtx;
+}
+function playTick(){
+  const ctx = getAudioCtx();
+  if(!ctx) return;
+  const t = ctx.currentTime;
+  const osc = ctx.createOscillator();
+  const gain = ctx.createGain();
+  // Sine (smooth, no harsh square-wave harmonics) at a low, clock-like pitch.
+  osc.type = "sine";
+  osc.frequency.setValueAtTime(420, t);
+  osc.frequency.exponentialRampToValueAtTime(270, t + 0.05);
+  gain.gain.setValueAtTime(0.0001, t);
+  gain.gain.exponentialRampToValueAtTime(0.12, t + 0.008);   // soft attack
+  gain.gain.exponentialRampToValueAtTime(0.0001, t + 0.08);  // gentle decay
+  osc.connect(gain).connect(ctx.destination);
+  osc.start(t);
+  osc.stop(t + 0.09);
+}
+// ms between ticks, from the fraction of your time remaining (1 = full, 0 = none).
+function tickInterval(pct){
+  return 1000 * Math.max(0, Math.min(1, pct)) + 60; // full→~1.06s, empty→60ms
+}
+let lastTickAt = 0;
+
+/* ---------- online: undo request + names ---------- */
+let undoRequest = null;   // color of the player who requested an undo, or null
+let myName = "";
+let oppName = "";
+let splashDismissed = false; // user clicked "View Board" — don't re-show the splash
 
 /* ---------- rendering ---------- */
 
@@ -216,11 +725,12 @@ function render(){
   for(let r=0;r<8;r++) for(let c=0;c<8;c++){
     const div = document.createElement("div");
     div.className = "sq " + ((r+c)%2===0 ? "light" : "dark");
+    div.style.backgroundPosition = (-c*62) + "px " + (-r*62) + "px"; // sample this square's region of the shared grain image
     const p = S.board[r][c];
     if(p){
       const span = document.createElement("span");
       span.className = "pc " + p.c;
-      span.textContent = GLYPH[p.c][p.t];
+      span.innerHTML = pieceHTML(p.t, p.c);
       div.appendChild(span);
     }
     if(S.lastMove && ((S.lastMove.fr===r&&S.lastMove.fc===c)||(S.lastMove.tr===r&&S.lastMove.tc===c)))
@@ -246,9 +756,9 @@ function render(){
   }
   document.getElementById("status").textContent = statusText();
   document.getElementById("cap-w").innerHTML =
-    '<span class="lbl">White captured:</span>' + S.captured.w.map(t=>GLYPH.b[t]).join("");
+    '<span class="lbl">White captured:</span>' + S.captured.w.map(t=>pieceHTML(t,"b")).join("");
   document.getElementById("cap-b").innerHTML =
-    '<span class="lbl">Black captured:</span>' + S.captured.b.map(t=>GLYPH.w[t]).join("");
+    '<span class="lbl">Black captured:</span>' + S.captured.b.map(t=>pieceHTML(t,"w")).join("");
   const movesEl = document.getElementById("moves");
   let html = "";
   for(let i=0;i<S.moves.length;i+=2){
@@ -257,8 +767,17 @@ function render(){
   movesEl.innerHTML = html;
   movesEl.scrollTop = movesEl.scrollHeight;
 
+  renderClocks();
+  updateNames();
+  updateSplash();
   const undoBtn = document.getElementById("undo");
-  undoBtn.disabled = history.length === 0;
+  if(mode === "online"){
+    undoBtn.textContent = "Request Undo";
+    undoBtn.disabled = !(history.length >= 1 && !undoRequest);
+  } else {
+    undoBtn.textContent = "Undo";
+    undoBtn.disabled = history.length === 0;
+  }
   const newBtn = document.getElementById("new");
   newBtn.textContent = mode === "online"
     ? (S.over ? "Rematch" : "Leave")
@@ -266,6 +785,97 @@ function render(){
   document.getElementById("room-code").style.display =
     (mode === "online" && roomCode) ? "block" : "none";
 }
+
+/* ---------- clocks, names, splash, customization, undo ---------- */
+
+function fmtTime(ms){
+  const total = Math.max(0, Math.ceil(ms/1000));
+  const m = Math.floor(total/60);
+  const sec = total % 60;
+  return m + ":" + String(sec).padStart(2,"0");
+}
+function renderClocks(){
+  const cw = document.getElementById("clock-w");
+  const cb = document.getElementById("clock-b");
+  const wrap = document.getElementById("clocks");
+  if(!cw || !wrap) return;
+  if(timeControl > 0){
+    wrap.style.display = "flex";
+    cw.textContent = fmtTime(times.w);
+    cb.textContent = fmtTime(times.b);
+    cw.classList.toggle("active", S.turn==="w" && !S.over);
+    cb.classList.toggle("active", S.turn==="b" && !S.over);
+    cw.classList.toggle("low", times.w < 30000);
+    cb.classList.toggle("low", times.b < 30000);
+  } else {
+    wrap.style.display = "none";
+  }
+}
+function updateNames(){
+  const nw = document.getElementById("name-w");
+  const nb = document.getElementById("name-b");
+  if(!nw || !nb) return;
+  if(mode === "online" && myColor){
+    const mine = myName ? (myName + " (you)") : "You";
+    const theirs = oppName || "Opponent";
+    if(myColor === "w"){ nw.textContent = mine; nb.textContent = theirs; }
+    else { nw.textContent = theirs; nb.textContent = mine; }
+  } else {
+    nw.textContent = "White";
+    nb.textContent = "Black";
+  }
+}
+function reasonText(){
+  const map = { checkmate:"by checkmate", resign:"by resignation", time:"on time",
+    stalemate:"by stalemate", "50-move rule":"by 50-move rule", "insufficient material":"by insufficient material" };
+  return map[S.reason] || ("— " + S.reason);
+}
+function updateSplash(){
+  const el = document.getElementById("splash");
+  if(!el) return;
+  if(!S.over || splashDismissed){ el.classList.add("hidden"); return; }
+  let main, cls;
+  if(S.winner === null){ main = "DRAW"; cls = "draw"; }
+  else if(mode === "online"){
+    if(S.winner === myColor){ main = "VICTORY"; cls = "win"; }
+    else { main = "DEFEAT"; cls = "lose"; }
+  } else {
+    main = (S.winner==="w" ? "WHITE WINS" : "BLACK WINS"); cls = "win";
+  }
+  const txt = document.getElementById("splash-text");
+  txt.textContent = main;
+  txt.className = "splash-text " + cls;
+  document.getElementById("splash-sub").textContent = reasonText();
+  el.classList.remove("hidden");
+}
+function applyTheme(){
+  const t = THEMES[settings.theme] || THEMES.classic;
+  const root = document.documentElement;
+  root.style.setProperty("--light", t.light);
+  root.style.setProperty("--dark", t.dark);
+  root.style.setProperty("--board-border", t.border);
+  try {
+    if(!grainCache[settings.theme]) grainCache[settings.theme] = makeGrain(t.tex, t.texSeed);
+    root.style.setProperty("--grain", "url('" + grainCache[settings.theme] + "')");
+  } catch(e) { /* no canvas support (test sandbox) — flat colors only */ }
+  // tarnished-metal finish on the blue board (dull/oxidized, applied to the board
+  // surface only, below the pieces). Wood boards stay natural — no sheen.
+  const boardEl = document.getElementById("board");
+  if(boardEl) boardEl.classList.toggle("tarnish", t.tex === "metal");
+}
+function doUndo(n){
+  n = Math.min(n, history.length);
+  if(!n) return;
+  let st;
+  for(let i=0;i<n;i++) st = history.pop();
+  S = st;
+  selected = null; legal = [];
+  pendingPromo = null;
+  const promo = document.getElementById("promo");
+  if(promo) promo.classList.add("hidden");
+}
+function showUndoPrompt(){ const el = document.getElementById("undo-prompt"); if(el) el.classList.remove("hidden"); }
+function hideUndoPrompt(){ const el = document.getElementById("undo-prompt"); if(el) el.classList.add("hidden"); }
 
 /* ---------- game actions ---------- */
 
@@ -327,7 +937,7 @@ function showPromo(color){
   box.innerHTML = "";
   for(const t of ["q","r","b","n"]){
     const btn = document.createElement("button");
-    btn.textContent = GLYPH[color][t];
+    btn.innerHTML = pieceHTML(t, color);
     btn.addEventListener("click", ()=>{
       el.classList.add("hidden");
       const m = pendingPromo;
@@ -389,7 +999,14 @@ function newPeer(id){
 
 function wireConn(c){
   conn = c;
-  c.on("open", () => { waiting = false; render(); });
+  c.on("open", () => {
+    waiting = false;
+    // introduce ourselves; the creator (white) also carries the time control
+    const hello = { type:"hello", name: myName };
+    if(myColor === "w") hello.time = timeControl;
+    sendOnline(hello);
+    render();
+  });
   c.on("data", (d) => {
     let msg;
     try { msg = JSON.parse(d); } catch { return; }
@@ -424,17 +1041,41 @@ function handleOnlineMsg(msg){
       S = C.initialState();
       history = [];
       selected = null; legal = [];
+      pendingPromo = null;
+      times = { w: timeControl, b: timeControl };
+      document.getElementById("promo").classList.add("hidden");
       render();
       break;
-    case "undo": {
-      const n = Math.min(msg.n || 1, history.length);
-      if(!n) return;
-      let st;
-      for(let i=0;i<n;i++) st = history.pop();
-      S = st;
-      selected = null; legal = [];
-      pendingPromo = null;
-      document.getElementById("promo").classList.add("hidden");
+    case "hello": {
+      oppName = msg.name || "";
+      if(msg.time){ timeControl = msg.time; times = { w: timeControl, b: timeControl }; }
+      render();
+      break;
+    }
+    case "timeout":
+      if(S.over) return;
+      S.over = true; S.winner = msg.winner; S.reason = "time";
+      render();
+      break;
+    case "undoReq": {
+      if(undoRequest) return;
+      undoRequest = (myColor==="w" ? "b" : "w"); // requester is the opponent
+      showUndoPrompt();
+      render();
+      break;
+    }
+    case "undoAccept": {
+      if(!undoRequest) return;
+      doUndo(1);
+      undoRequest = null;
+      hideUndoPrompt();
+      render();
+      break;
+    }
+    case "undoReject": {
+      if(!undoRequest) return;
+      undoRequest = null;
+      hideUndoPrompt();
       render();
       break;
     }
@@ -449,15 +1090,25 @@ function startOnline(action){
   selected = null; legal = [];
   oppLeft = false;
   waiting = true;
+  undoRequest = null;
+  oppName = "";
+  splashDismissed = false;
+  myName = settings.name || "";
+  applyTheme();
   document.getElementById("lobby").classList.add("hidden");
-  render();
   if(action === "create"){
     myColor = "w";
+    timeControl = settings.time;
+    times = { w: timeControl, b: timeControl };
+    render();
     newPeer(makeRoomCode());
   } else {
     const code = document.getElementById("join-code").value.trim().toUpperCase();
     if(code.length < 4){ setLobbyErr("Enter a 4-character code"); return; }
     myColor = "b";
+    timeControl = 0; // set when the creator's hello arrives
+    times = { w:0, b:0 };
+    render();
     pendingJoinCode = code;
     newPeer(null);
   }
@@ -476,6 +1127,12 @@ function backToLobby(){
   roomCode = null;
   waiting = false;
   oppLeft = false;
+  undoRequest = null;
+  oppName = "";
+  splashDismissed = false;
+  timeControl = 0;
+  times = { w:0, b:0 };
+  hideUndoPrompt();
   S = C.initialState();
   history = [];
   selected = null; legal = [];
@@ -492,6 +1149,11 @@ document.getElementById("btn-local").addEventListener("click", ()=>{
   S = C.initialState();
   history = [];
   selected = null; legal = [];
+  pendingPromo = null;
+  undoRequest = null;
+  timeControl = settings.time;
+  times = { w: timeControl, b: timeControl };
+  applyTheme();
   document.getElementById("lobby").classList.add("hidden");
   render();
 });
@@ -504,6 +1166,7 @@ document.getElementById("join-code").addEventListener("keydown", (e)=>{
 });
 
 document.getElementById("new").addEventListener("click", ()=>{
+  const resetClock = () => { times = { w: timeControl, b: timeControl }; undoRequest = null; splashDismissed = false; };
   if(mode === "online"){
     if(S.over){
       // reset locally AND tell the peer
@@ -511,6 +1174,7 @@ document.getElementById("new").addEventListener("click", ()=>{
       history = [];
       selected = null; legal = [];
       pendingPromo = null;
+      resetClock();
       document.getElementById("promo").classList.add("hidden");
       render();
       sendOnline({type:"new"});
@@ -521,6 +1185,7 @@ document.getElementById("new").addEventListener("click", ()=>{
     history = [];
     selected = null; legal = [];
     pendingPromo = null;
+    resetClock();
     document.getElementById("promo").classList.add("hidden");
     render();
   }
@@ -528,20 +1193,16 @@ document.getElementById("new").addEventListener("click", ()=>{
 
 document.getElementById("undo").addEventListener("click", ()=>{
   if(!history.length) return;
-  // Online: take back enough plies so it's my turn again (2 if it's my turn,
-  // 1 if it's the opponent's) and tell the peer so both boards stay in sync.
-  // Local: take back the last single move.
-  const n = mode === "online"
-    ? Math.min((S.turn === myColor) ? 2 : 1, history.length)
-    : 1;
-  let st;
-  for(let i=0;i<n;i++) st = history.pop();
-  S = st;
-  selected = null; legal = [];
-  pendingPromo = null;
-  document.getElementById("promo").classList.add("hidden");
-  render();
-  if(mode === "online") sendOnline({type:"undo", n});
+  if(mode === "online"){
+    // Online: ask the opponent to take back the last move (they must accept).
+    if(undoRequest) return;
+    undoRequest = myColor;
+    sendOnline({type:"undoReq"});
+    render();
+  } else {
+    doUndo(1);
+    render();
+  }
 });
 
 document.getElementById("resign").addEventListener("click", ()=>{
@@ -560,12 +1221,94 @@ document.getElementById("resign").addEventListener("click", ()=>{
   }
 });
 
+/* ---------- undo request: accept / reject ---------- */
+document.getElementById("undo-accept").addEventListener("click", ()=>{
+  if(!undoRequest) return;
+  doUndo(1);
+  undoRequest = null;
+  hideUndoPrompt();
+  render();
+  sendOnline({type:"undoAccept"});
+});
+document.getElementById("undo-reject").addEventListener("click", ()=>{
+  if(!undoRequest) return;
+  undoRequest = null;
+  hideUndoPrompt();
+  render();
+  sendOnline({type:"undoReject"});
+});
+
+/* ---------- splash: play again / view board ---------- */
+document.getElementById("splash-btn").addEventListener("click", ()=>{
+  document.getElementById("new").click();
+});
+document.getElementById("splash-view").addEventListener("click", ()=>{
+  splashDismissed = true;
+  document.getElementById("splash").classList.add("hidden");
+});
+
+/* ---------- lobby settings (name, time, theme, pieces) — persisted ---------- */
+const setNameEl = document.getElementById("set-name");
+const setTimeEl = document.getElementById("set-time");
+const setThemeEl = document.getElementById("set-theme");
+const setPiecesEl = document.getElementById("set-pieces");
+setNameEl.value = settings.name || "";
+setTimeEl.value = String(settings.time);
+setThemeEl.value = settings.theme;
+setPiecesEl.value = settings.pieces;
+applyTheme();
+function syncSettings(){
+  settings.name = setNameEl.value.trim();
+  settings.time = parseInt(setTimeEl.value, 10) || 0;
+  settings.theme = setThemeEl.value;
+  settings.pieces = setPiecesEl.value;
+  saveSettings();
+  applyTheme();
+}
+setNameEl.addEventListener("input", syncSettings);
+setTimeEl.addEventListener("change", syncSettings);
+setThemeEl.addEventListener("change", ()=>{ syncSettings(); render(); });
+setPiecesEl.addEventListener("change", ()=>{ syncSettings(); render(); });
+
+/* ---------- chess clock: tick every 100ms while a game is live ---------- */
+setInterval(() => {
+  if(timeControl <= 0 || S.over){
+    if(document.body) document.body.classList.remove("frantic");
+    return;
+  }
+  if(mode === "online" && (waiting || oppLeft)) return;
+  times[S.turn] = Math.max(0, times[S.turn] - 100);
+  if(times[S.turn] === 0){
+    const loser = S.turn;
+    S.over = true; S.winner = (loser==="w"?"b":"w"); S.reason = "time";
+    if(mode === "online") sendOnline({type:"timeout", winner:S.winner});
+    render();
+  } else {
+    renderClocks();
+  }
+  // ticking sound: only while YOUR clock is running
+  const isMyTurn = (mode === "online") ? (S.turn === myColor) : true;
+  if(isMyTurn && timeControl > 0 && !S.over){
+    const pct = times[S.turn] / timeControl;
+    const now = Date.now();
+    if(now - lastTickAt >= tickInterval(pct)){ lastTickAt = now; playTick(); }
+  }
+  // frantic red border: your time is in the last few % (regardless of turn)
+  const myTime = (mode === "online" && myColor) ? times[myColor] : times[S.turn];
+  const myPct = timeControl > 0 ? myTime / timeControl : 1;
+  if(document.body) document.body.classList.toggle("frantic", myPct < 0.15 && !S.over);
+}, 100);
+
 /* test hook (used by the automated P2P test) */
 window.__test = {
-  state: () => ({ S, mode, myColor, roomCode, waiting, oppLeft }),
+  state: () => ({ S, mode, myColor, roomCode, waiting, oppLeft,
+                  undoRequest, timeControl, times, oppName, myName }),
   conn: () => conn,
   peer: () => peer
 };
+
+// Prime the audio context on first user interaction (browser autoplay policy)
+if(document.addEventListener) document.addEventListener("click", () => { getAudioCtx(); }, { once: true });
 
 render();
 </script>
